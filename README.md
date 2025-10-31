@@ -78,7 +78,7 @@ Dashboard pages:
 - PDF/DOCX parsing issues: ensure `pypdf` and `python-docx` are installed (they are listed in `requirements.txt`). Some PDFs may not produce perfect text extraction.
 - If ingestion does not appear to update the retriever results, confirm that the Chroma collection was persisted to `./.chroma` and the app is using the same persist directory.
 
-## Project layout (high level)
+## Project layout 
 
 - app.py — Streamlit dashboard and UI
 - ingestion.py — seeding and `process_documents` helper for indexing local files
