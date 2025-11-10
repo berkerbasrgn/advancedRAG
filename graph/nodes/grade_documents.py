@@ -1,37 +1,26 @@
-from typing import Any, Dict
-
+from __future__ import annotations  # optional, but helps
 from graph.chains.retrieval_grader import retrieval_grader
 from graph.state import GraphState
-
+from typing import Any, Dict, List
 
 def grade_documents(state: GraphState) -> Dict[str, Any]:
-    """
-    Determines whether the retrieved documents are relevant to the question
-    If any document is not relevant, we will set a flag to run web search
-
-    Args:
-        state (dict): The current graph state
-
-    Returns:
-        state (dict): Filtered out irrelevant documents and updated web_search state
-    """
-
     print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
     question = state["question"]
-    documents = state["documents"]
+    documents = state.get("documents", []) or []
 
     filtered_docs = []
-    web_search = False
+    trigger_web = False
     for d in documents:
-        score = retrieval_grader.invoke(
-            {"question": question, "document": d.page_content}
-        )
-        grade = score.binary_score
-        if grade.lower() == "yes":
-            print("---GRADE: DOCUMENT RELEVANT---")
+        score = retrieval_grader.invoke({"question": question, "document": d.page_content})
+        if str(score.binary_score).lower() == "yes":
             filtered_docs.append(d)
         else:
-            print("---GRADE: DOCUMENT NOT RELEVANT---")
-            web_search = True
-            continue
-    return {"documents": filtered_docs, "question": question, "web_search": web_search}
+            trigger_web = True
+
+    return {
+        "question": question,
+        "documents": filtered_docs,
+        "web_search": trigger_web,                              # router trigger
+        "used_web_search": state.get("used_web_search", False), # keep telemetry
+        "route": "hybrid" if trigger_web else "vector",
+    }

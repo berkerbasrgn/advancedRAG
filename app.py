@@ -1,162 +1,398 @@
-import streamlit as st
-from ingestion import process_documents
+"""
+Advanced Streamlit interface for Corrective RAG.
+Improved version with proper environment variable loading.
+"""
+
 import os
+import sys
+from pathlib import Path
+
+# Load environment variables FIRST, before any other imports
+from dotenv import load_dotenv
+
+# Load .env from current directory or parent directory
+env_path = Path('.env')
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"✓ Loaded .env from {env_path.absolute()}")
+else:
+    # Try parent directory
+    parent_env = Path('..') / '.env'
+    if parent_env.exists():
+        load_dotenv(parent_env)
+        print(f"✓ Loaded .env from {parent_env.absolute()}")
+    else:
+        print("⚠ No .env file found")
+os.environ["CHROMA_TELEMETRY_ENABLED"] = "false"
+
+# Suppress ChromaDB warnings
+os.environ.setdefault("USER_AGENT", "corrective-rag/1.0")
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
+import streamlit as st
 from PIL import Image
 
-st.set_page_config(page_title="Advanced RAG Dashboard", layout="wide")
+# Page configuration
+st.set_page_config(
+    page_title="Advanced RAG Dashboard",
+    page_icon="🔄",
+    layout="wide",
+)
 
-# Warn if critical environment variables are missing
-OPENAI_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_KEY")
+# Check for API keys AFTER loading env
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+TAVILY_KEY = os.getenv("TAVILY_API_KEY")
+
+# Show key status in sidebar
+# --- Keys/status (no key fragments shown) ---
 if not OPENAI_KEY:
-    st.sidebar.warning(
-        "OPENAI_API_KEY not set. Set it in your environment or in a .env file for the RAG system to work (embeddings & LLM)."
-    )
+    st.sidebar.error("⚠️ OPENAI_API_KEY not found. Add it to your .env.")
+    st.error("Cannot proceed without OPENAI_API_KEY. Please add it to your .env file.")
+    st.stop()
+else:
+    st.sidebar.success("✅ OpenAI API key loaded")
 
-st.title("Advanced RAG System Dashboard")
+if TAVILY_KEY:
+    st.sidebar.success("✅ Tavily web search enabled")
+else:
+    st.sidebar.info("ℹ️ Tavily not configured — web search disabled")
 
-# Sidebar for navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Query System", "Document Ingestion", "System Info"])
+# Custom CSS
+st.markdown("""
+    <style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+    }
+    .stAlert {
+        margin-top: 1rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-if page == "Query System":
-    st.header("Query the RAG System")
 
-    # Input for user query
-    user_query = st.text_input("Enter your question:")
+def initialize_session_state():
+    """Initialize session state variables."""
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "vectorstore_loaded" not in st.session_state:
+        st.session_state.vectorstore_loaded = False
 
-    if st.button("Submit Query"):
-        if user_query:
-            with st.spinner('Processing your query...'):
-                try:
-                    # Lazy import of the compiled workflow app to avoid heavy startup at import time
-                    from main import app
-                except Exception as e:
-                    st.error("Failed to load the workflow app. See details below.")
-                    st.exception(e)
-                else:
-                    try:
-                        response = app.invoke(input={"question": user_query})
 
-                        # Try to convert to JSON-serializable form
-                        def normalize(obj):
-                            if hasattr(obj, "to_dict"):
-                                try:
-                                    return obj.to_dict()
-                                except Exception:
-                                    pass
-                            if isinstance(obj, dict):
-                                return obj
-                            if hasattr(obj, "__dict__"):
-                                try:
-                                    return {k: normalize(v) for k, v in obj.__dict__.items()}
-                                except Exception:
-                                    pass
-                            if isinstance(obj, (list, tuple)):
-                                return [normalize(x) for x in obj]
-                            return str(obj)
-
-                        normalized = normalize(response)
-
-                        st.subheader("Raw Response")
-                        try:
-                            st.json(normalized)
-                        except Exception:
-                            st.write(normalized)
-
-                        if isinstance(normalized, dict):
-                            for key in ("generation", "answer", "output", "value", "result"):
-                                if key in normalized:
-                                    st.subheader(f"{key.capitalize()}")
-                                    st.write(normalized[key])
-
-                    except Exception as e:
-                        if "OPENAI_API_KEY" in str(e) or "openai" in str(e).lower():
-                            st.error("LLM or embeddings call failed. Check that OPENAI_API_KEY is set and valid.")
-                        else:
-                            st.error("An error occurred while invoking the workflow. See details below.")
-                        st.exception(e)
-        else:
-            st.warning("Please enter a query first.")
-
-elif page == "Document Ingestion":
-    st.header("Document Ingestion")
-
-    # File uploader
-    uploaded_files = st.file_uploader("Upload documents", accept_multiple_files=True, type=['txt', 'pdf', 'doc', 'docx'])
-
-    if uploaded_files:
-        if st.button("Process Documents"):
-            with st.spinner('Processing documents...'):
-                try:
-                    # Save uploaded files temporarily and process them
-                    temp_paths = []
-                    for file in uploaded_files:
-                        temp_path = os.path.join(".", f"temp_{file.name}")
-                        with open(temp_path, "wb") as f:
-                            f.write(file.getbuffer())
-                            temp_paths.append(temp_path)
-
-                    # Process the documents
-                    process_documents(temp_paths)
-
-                    # Clean up temporary files
-                    for path in temp_paths:
-                        try:
-                            os.remove(path)
-                        except Exception:
-                            pass
-
-                    st.success("Documents processed successfully!")
-                except Exception as e:
-                    st.error(f"An error occurred during document processing: {str(e)}")
-
-elif page == "System Info":
-    st.header("System Information")
-
-    st.subheader("Workflow Diagram")
-    if st.button("Render Workflow Diagram"):
+def load_vectorstore():
+    """Load or create the vectorstore."""
+    if not st.session_state.vectorstore_loaded:
         try:
-            from main import app
+            from ingestion import get_or_create_vectorstore
+            with st.spinner("Loading vectorstore..."):
+                get_or_create_vectorstore()
+                st.session_state.vectorstore_loaded = True
+                st.sidebar.success("✅ Vectorstore loaded")
         except Exception as e:
-            st.error("Failed to load the workflow app to render the diagram.")
+            st.error(f"❌ Failed to load vectorstore: {e}")
             st.exception(e)
-        else:
-            try:
-                graph = None
+
+
+def query_page():
+    """Query system page."""
+    st.markdown('<div class="main-header">🔍 Query System</div>', unsafe_allow_html=True)
+
+    # Load vectorstore
+    load_vectorstore()
+
+    # Display chat history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Chat input
+    if question := st.chat_input("Ask me anything..."):
+        # Add user message
+        st.session_state.messages.append({"role": "user", "content": question})
+
+        with st.chat_message("user"):
+            st.markdown(question)
+
+        # Generate response
+        with st.chat_message("assistant"):
+            with st.spinner("🤔 Thinking..."):
                 try:
-                    graph = app.get_graph()
-                except Exception:
-                    graph = None
+                    from graph.graph import app
 
-                if graph is not None and hasattr(graph, "draw_mermaid_png"):
-                    try:
-                        graph.draw_mermaid_png(output_file_path="graph.png")
-                        st.success("Rendered graph to graph.png")
-                    except Exception as e:
-                        st.warning(f"Failed to draw graph image: {e}")
-                else:
-                    st.info("Graph drawing not available on this app object.")
-            except Exception as e:
-                st.error("Failed while attempting to render the graph.")
-                st.exception(e)
+                    # Invoke the workflow
+                    response = app.invoke({"question": question})
 
-    # Display workflow diagram if available
-    try:
-        image = Image.open('graph.png')
-        st.image(image, caption='RAG System Workflow', use_column_width=True)
-    except Exception:
-        st.info("Workflow diagram not available. Click 'Render Workflow Diagram' to attempt to generate it.")
+                    # Extract answer
+                    # Extract answer & telemetry safely
+                    answer = ""
+                    used_web = False
+                    doc_count = 0
+                    sources = []
 
-    # Display system architecture information
-    st.subheader("System Architecture")
-    st.write("""
-    This Advanced RAG system implements a sophisticated retrieval-augmented generation pipeline with:
-    - Multi-step retrieval process
-    - Answer generation with fact-checking
-    - Multiple grading components for quality control
-    - Dynamic routing based on query type
+                    if isinstance(response, dict):
+                        answer = response.get("generation") or ""
+                        used_web = bool(response.get("used_web_search", False))
+                        docs = response.get("documents", [])
+                        doc_count = len(docs)
+                        # try to show sources if metadata exists
+                        try:
+                            sources = [getattr(d, "metadata", {}) for d in docs]
+                        except Exception:
+                            sources = []
+                    else:
+                        answer = str(response)
+
+                    st.markdown(answer or "_No answer generated._")
+
+                    with st.expander("📊 View Details"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Documents Used", doc_count)
+                        with col2:
+                            st.metric("Web Search", "Yes" if used_web else "No")
+
+                    tab1, tab2 = st.tabs(["Raw Response", "Sources"])
+                    with tab1:
+                        try:
+                            st.json(response if isinstance(response, dict) else {"raw": str(response)})
+                        except Exception:
+                            st.write(response)
+                    with tab2:
+                        if sources:
+                            st.json(sources)
+                        else:
+                            st.write("No source metadata available.")
+
+
+                except Exception as e:
+                    error_msg = f"❌ Error: {str(e)}"
+                    st.error(error_msg)
+
+                    if "OPENAI_API_KEY" in str(e) or "api_key" in str(e).lower():
+                        st.info("💡 API key issue. Check your .env file has OPENAI_API_KEY set correctly.")
+
+                    # Show full error in expander
+                    with st.expander("🔍 Full Error Details"):
+                        st.exception(e)
+
+                    # Add error to history
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": error_msg
+                    })
+
+
+def ingestion_page():
+    """Document ingestion page."""
+    st.markdown('<div class="main-header">📚 Document Ingestion</div>', unsafe_allow_html=True)
+
+    st.info("""
+    Upload documents to add them to the vectorstore. Supported formats:
+    - Text files (.txt)
+    - PDF files (.pdf)
+    - Word documents (.doc, .docx)
     """)
 
-# Footer
-st.sidebar.markdown("---")
-st.sidebar.markdown("Advanced RAG System v1.0")
+    # File uploader
+    uploaded_files = st.file_uploader(
+        "Choose files to upload",
+        accept_multiple_files=True,
+        type=['txt', 'pdf', 'doc', 'docx']
+    )
+
+    if uploaded_files:
+        st.write(f"📁 Selected {len(uploaded_files)} file(s):")
+        for file in uploaded_files:
+            st.write(f"- {file.name} ({file.size / 1024:.1f} KB)")
+
+        if st.button("🚀 Process Documents", type="primary"):
+            with st.spinner('Processing documents...'):
+                try:
+                    # Create temp directory
+                    temp_dir = Path("temp_uploads")
+                    temp_dir.mkdir(exist_ok=True)
+
+                    # Save uploaded files
+                    temp_paths = []
+                    for file in uploaded_files:
+                        temp_path = temp_dir / file.name
+                        with open(temp_path, "wb") as f:
+                            f.write(file.getbuffer())
+                        temp_paths.append(str(temp_path))
+
+                    # Process documents
+                    from ingestion import process_documents
+                    process_documents(temp_paths)
+
+                    # Clean up
+                    for path in temp_paths:
+                        try:
+                            Path(path).unlink()
+                        except Exception:
+                            pass
+                    try:
+                        temp_dir.rmdir()
+                    except:
+                        pass
+
+                    st.success("✅ Documents processed successfully!")
+                    st.balloons()
+
+                    # Reset vectorstore flag to reload
+                    st.session_state.vectorstore_loaded = False
+
+                except Exception as e:
+                    st.error(f"❌ Error processing documents: {str(e)}")
+                    with st.expander("🔍 Full Error Details"):
+                        st.exception(e)
+
+
+def system_info_page():
+    """System information page."""
+    st.markdown('<div class="main-header">ℹ️ System Information</div>', unsafe_allow_html=True)
+
+    # System Architecture
+    st.subheader("🏗️ System Architecture")
+    st.write("""
+    This Corrective RAG system implements a sophisticated pipeline with:
+    
+    - **🎯 Smart Query Routing**: Automatically routes queries to vectorstore or web search
+    - **📄 Document Grading**: Filters relevant documents before generation
+    - **✅ Hallucination Detection**: Validates that answers are grounded in facts
+    - **🔍 Answer Validation**: Ensures answers actually address the question
+    - **🔄 Self-Correction**: Automatically retries or searches web if quality is insufficient
+    """)
+
+    # Workflow Visualization
+    st.subheader("📊 Workflow Diagram")
+
+    col1, col2 = st.columns([1, 4])
+
+    with col1:
+        if st.button("🎨 Generate Diagram", type="primary"):
+            with st.spinner("Rendering workflow diagram..."):
+                try:
+                    from graph.graph import app
+
+                    # Try to generate diagram
+                    graph = app.get_graph()
+                    graph.draw_mermaid_png(output_file_path="graph.png")
+
+                    st.success("✅ Diagram generated!")
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Failed to generate diagram: {str(e)}")
+                    with st.expander("🔍 Full Error"):
+                        st.exception(e)
+
+    with col2:
+        # Display diagram if it exists
+        # Display diagram if available (robust across Streamlit versions)
+        if Path("graph.png").exists():
+            try:
+                try:
+                    st.image("graph.png", caption="RAG System Workflow", use_container_width=True)
+                except TypeError:
+                    # Older Streamlit versions
+                    st.image("graph.png", caption="RAG System Workflow", use_column_width=True)
+            except Exception as e:
+                st.error(f"Failed to load diagram: {e}")
+        else:
+            st.info("💡 Click 'Generate Diagram' to visualize the workflow")
+
+    # Configuration
+    st.subheader("⚙️ Configuration")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("**API Keys Status**")
+        st.write(f"OpenAI: {'✅' if OPENAI_KEY else '❌'}")
+        st.write(f"Tavily: {'✅' if TAVILY_KEY else '❌'}")
+
+
+    with col2:
+        st.write("**System Status**")
+        st.write(f"Vectorstore: {'✅ Loaded' if st.session_state.vectorstore_loaded else '⏳ Not loaded'}")
+        st.write(f"Messages: {len(st.session_state.messages)}")
+        st.write(f"Python: {sys.version.split()[0]}")
+
+    # Environment Variables
+    with st.expander("🔍 Environment Variables"):
+        env_vars = {
+            "OPENAI_API_KEY": "✅ Set" if OPENAI_KEY else "❌ Missing",
+            "TAVILY_API_KEY": "✅ Set" if TAVILY_KEY else "❌ Missing",
+            "USER_AGENT": os.getenv("USER_AGENT", "Not set"),
+            "Working Directory": os.getcwd(),
+        }
+        for key, value in env_vars.items():
+            st.write(f"**{key}**: {value}")
+
+
+def main():
+    """Main application."""
+    initialize_session_state()
+
+    # Sidebar
+    with st.sidebar:
+        st.title("🔄 Corrective RAG")
+        st.markdown("---")
+
+        # Navigation
+        page = st.radio(
+            "Navigate to:",
+            ["🔍 Query System", "📚 Document Ingestion", "ℹ️ System Info"],
+            label_visibility="collapsed"
+        )
+
+        st.markdown("---")
+
+        # Actions
+        st.subheader("Actions")
+
+        if st.button("🔄 Reload Vectorstore", use_container_width=True):
+            with st.spinner("Reloading..."):
+                try:
+                    from ingestion import get_or_create_vectorstore
+                    get_or_create_vectorstore(force_reload=True)
+                    st.session_state.vectorstore_loaded = True
+                    st.success("✅ Reloaded!")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+
+        if st.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()
+
+        st.markdown("---")
+
+        # About
+        with st.expander("ℹ️ About"):
+            st.markdown("""
+            **Corrective RAG v1.0**
+            
+            A self-correcting Retrieval Augmented Generation system
+            with built-in validation and quality control.
+            
+            - Smart routing
+            - Hallucination detection
+            - Answer validation
+            - Auto-correction
+            """)
+
+        # Version info
+        st.caption("v1.0.0 | Made with ❤️")
+
+    # Route to appropriate page
+    if page == "🔍 Query System":
+        query_page()
+    elif page == "📚 Document Ingestion":
+        ingestion_page()
+    elif page == "ℹ️ System Info":
+        system_info_page()
+
+
+if __name__ == "__main__":
+    main()
