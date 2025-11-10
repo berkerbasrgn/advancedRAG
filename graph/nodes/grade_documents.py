@@ -1,4 +1,4 @@
-from __future__ import annotations  # optional, but helps
+from __future__ import annotations
 from graph.chains.retrieval_grader import retrieval_grader
 from graph.state import GraphState
 from typing import Any, Dict, List
@@ -20,7 +20,7 @@ def grade_documents(state: GraphState) -> Dict[str, Any]:
     return {
         "question": question,
         "documents": filtered_docs,
-        "web_search": trigger_web,                              # router trigger
-        "used_web_search": state.get("used_web_search", False), # keep telemetry
+        "web_search": trigger_web,
+        "used_web_search": state.get("used_web_search", False),
         "route": "hybrid" if trigger_web else "vector",
     }

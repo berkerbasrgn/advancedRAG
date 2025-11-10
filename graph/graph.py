@@ -49,7 +49,6 @@ def route_question(state: GraphState) -> str:
         print("---ROUTE QUESTION TO RAG---")
         return RETRIEVE
 
-# NEW: finalize node to emit clean UI-friendly output
 def finalize(state: GraphState) -> Dict[str, Any]:
     docs = state.get("documents", []) or []
     sources = []

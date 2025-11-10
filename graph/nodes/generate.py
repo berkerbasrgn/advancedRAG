@@ -3,12 +3,9 @@ from typing import Any, Dict, List
 
 from graph.state import GraphState
 
-# Try to import your chain; if it fails (e.g., hub not reachable), build a local fallback.
 try:
-    from graph.chains.generation import generation_chain  # <- your intended chain
+    from graph.chains.generation import generation_chain
 except Exception as e:
-    # Build a portable fallback so the node always has a chain.
-    # This avoids NameError if hub.pull or imports fail in graph/chains/generation.py
     print("[generate] Falling back to local generation chain due to import error:", e)
     try:
         from langchain_openai import ChatOpenAI
@@ -24,20 +21,17 @@ except Exception as e:
         )
         generation_chain = _prompt | _llm | StrOutputParser()
     except Exception as ee:
-        # Absolute last-resort fallback to avoid crashing
         print("[generate] Could not build fallback chain:", ee)
-        generation_chain = None  # we'll guard at call time
+        generation_chain = None
 
 def generate(state: GraphState) -> Dict[str, Any]:
     print("---GENERATE---")
     q = state["question"]
     docs = state.get("documents", []) or []
 
-    # Join Document objects into plain text for the prompt
     context_text = "\n\n".join([getattr(d, "page_content", str(d)) for d in docs])
 
     if generation_chain is None:
-        # Very defensive: return a graceful message instead of crashing
         return {
             "question": q,
             "documents": docs,

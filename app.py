@@ -7,16 +7,13 @@ import os
 import sys
 from pathlib import Path
 
-# Load environment variables FIRST, before any other imports
 from dotenv import load_dotenv
 
-# Load .env from current directory or parent directory
 env_path = Path('.env')
 if env_path.exists():
     load_dotenv(env_path)
     print(f"✓ Loaded .env from {env_path.absolute()}")
 else:
-    # Try parent directory
     parent_env = Path('..') / '.env'
     if parent_env.exists():
         load_dotenv(parent_env)
@@ -25,26 +22,23 @@ else:
         print("⚠ No .env file found")
 os.environ["CHROMA_TELEMETRY_ENABLED"] = "false"
 
-# Suppress ChromaDB warnings
 os.environ.setdefault("USER_AGENT", "corrective-rag/1.0")
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 import streamlit as st
 from PIL import Image
 
-# Page configuration
+
 st.set_page_config(
     page_title="Advanced RAG Dashboard",
     page_icon="🔄",
     layout="wide",
 )
 
-# Check for API keys AFTER loading env
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 TAVILY_KEY = os.getenv("TAVILY_API_KEY")
 
-# Show key status in sidebar
-# --- Keys/status (no key fragments shown) ---
+
 if not OPENAI_KEY:
     st.sidebar.error("⚠️ OPENAI_API_KEY not found. Add it to your .env.")
     st.error("Cannot proceed without OPENAI_API_KEY. Please add it to your .env file.")
@@ -57,7 +51,6 @@ if TAVILY_KEY:
 else:
     st.sidebar.info("ℹ️ Tavily not configured — web search disabled")
 
-# Custom CSS
 st.markdown("""
     <style>
     .main-header {
@@ -98,33 +91,25 @@ def query_page():
     """Query system page."""
     st.markdown('<div class="main-header">🔍 Query System</div>', unsafe_allow_html=True)
 
-    # Load vectorstore
     load_vectorstore()
 
-    # Display chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Chat input
     if question := st.chat_input("Ask me anything..."):
-        # Add user message
         st.session_state.messages.append({"role": "user", "content": question})
 
         with st.chat_message("user"):
             st.markdown(question)
 
-        # Generate response
         with st.chat_message("assistant"):
             with st.spinner("🤔 Thinking..."):
                 try:
                     from graph.graph import app
 
-                    # Invoke the workflow
                     response = app.invoke({"question": question})
 
-                    # Extract answer
-                    # Extract answer & telemetry safely
                     answer = ""
                     used_web = False
                     doc_count = 0
@@ -135,7 +120,6 @@ def query_page():
                         used_web = bool(response.get("used_web_search", False))
                         docs = response.get("documents", [])
                         doc_count = len(docs)
-                        # try to show sources if metadata exists
                         try:
                             sources = [getattr(d, "metadata", {}) for d in docs]
                         except Exception:
@@ -172,11 +156,9 @@ def query_page():
                     if "OPENAI_API_KEY" in str(e) or "api_key" in str(e).lower():
                         st.info("💡 API key issue. Check your .env file has OPENAI_API_KEY set correctly.")
 
-                    # Show full error in expander
                     with st.expander("🔍 Full Error Details"):
                         st.exception(e)
 
-                    # Add error to history
                     st.session_state.messages.append({
                         "role": "assistant",
                         "content": error_msg
@@ -209,11 +191,9 @@ def ingestion_page():
         if st.button("🚀 Process Documents", type="primary"):
             with st.spinner('Processing documents...'):
                 try:
-                    # Create temp directory
                     temp_dir = Path("temp_uploads")
                     temp_dir.mkdir(exist_ok=True)
 
-                    # Save uploaded files
                     temp_paths = []
                     for file in uploaded_files:
                         temp_path = temp_dir / file.name
@@ -221,11 +201,9 @@ def ingestion_page():
                             f.write(file.getbuffer())
                         temp_paths.append(str(temp_path))
 
-                    # Process documents
                     from ingestion import process_documents
                     process_documents(temp_paths)
 
-                    # Clean up
                     for path in temp_paths:
                         try:
                             Path(path).unlink()
@@ -239,7 +217,6 @@ def ingestion_page():
                     st.success("✅ Documents processed successfully!")
                     st.balloons()
 
-                    # Reset vectorstore flag to reload
                     st.session_state.vectorstore_loaded = False
 
                 except Exception as e:
@@ -252,7 +229,6 @@ def system_info_page():
     """System information page."""
     st.markdown('<div class="main-header">ℹ️ System Information</div>', unsafe_allow_html=True)
 
-    # System Architecture
     st.subheader("🏗️ System Architecture")
     st.write("""
     This Corrective RAG system implements a sophisticated pipeline with:
@@ -264,7 +240,6 @@ def system_info_page():
     - **🔄 Self-Correction**: Automatically retries or searches web if quality is insufficient
     """)
 
-    # Workflow Visualization
     st.subheader("📊 Workflow Diagram")
 
     col1, col2 = st.columns([1, 4])
@@ -275,7 +250,6 @@ def system_info_page():
                 try:
                     from graph.graph import app
 
-                    # Try to generate diagram
                     graph = app.get_graph()
                     graph.draw_mermaid_png(output_file_path="graph.png")
 
@@ -288,21 +262,17 @@ def system_info_page():
                         st.exception(e)
 
     with col2:
-        # Display diagram if it exists
-        # Display diagram if available (robust across Streamlit versions)
         if Path("graph.png").exists():
             try:
                 try:
                     st.image("graph.png", caption="RAG System Workflow", use_container_width=True)
                 except TypeError:
-                    # Older Streamlit versions
                     st.image("graph.png", caption="RAG System Workflow", use_column_width=True)
             except Exception as e:
                 st.error(f"Failed to load diagram: {e}")
         else:
             st.info("💡 Click 'Generate Diagram' to visualize the workflow")
 
-    # Configuration
     st.subheader("⚙️ Configuration")
 
     col1, col2 = st.columns(2)
@@ -319,7 +289,6 @@ def system_info_page():
         st.write(f"Messages: {len(st.session_state.messages)}")
         st.write(f"Python: {sys.version.split()[0]}")
 
-    # Environment Variables
     with st.expander("🔍 Environment Variables"):
         env_vars = {
             "OPENAI_API_KEY": "✅ Set" if OPENAI_KEY else "❌ Missing",
@@ -335,12 +304,10 @@ def main():
     """Main application."""
     initialize_session_state()
 
-    # Sidebar
     with st.sidebar:
         st.title("🔄 Corrective RAG")
         st.markdown("---")
 
-        # Navigation
         page = st.radio(
             "Navigate to:",
             ["🔍 Query System", "📚 Document Ingestion", "ℹ️ System Info"],
@@ -349,7 +316,6 @@ def main():
 
         st.markdown("---")
 
-        # Actions
         st.subheader("Actions")
 
         if st.button("🔄 Reload Vectorstore", use_container_width=True):
@@ -368,7 +334,6 @@ def main():
 
         st.markdown("---")
 
-        # About
         with st.expander("ℹ️ About"):
             st.markdown("""
             **Corrective RAG v1.0**
@@ -382,10 +347,8 @@ def main():
             - Auto-correction
             """)
 
-        # Version info
         st.caption("v1.0.0 | Made with ❤️")
 
-    # Route to appropriate page
     if page == "🔍 Query System":
         query_page()
     elif page == "📚 Document Ingestion":
