@@ -21,15 +21,6 @@
             </PendingDiffInfo>
           </value>
         </entry>
-        <entry key="$PROJECT_DIR$/requirements.txt">
-          <value>
-            <PendingDiffInfo>
-              <option name="filePath" value="$PROJECT_DIR$/requirements.txt" />
-              <option name="originalContent" value="beautifulsoup4==4.12.3&#10;langchain==0.2.7&#10;langgraph==0.1.8&#10;langchainhub==0.1.20&#10;langchain-community==0.2.7&#10;tavily-python==0.3.4&#10;langchain-chroma==0.1.2&#10;python-dotenv==1.0.1&#10;pytest==8.2.2&#10;langchain-openai==0.1.16&#10;streamlit==1.32.0&#10;graphviz==0.20.1&#10;pypdf==3.13.0&#10;python-docx==0.8.11&#10;" />
-              <option name="updatedContent" value="beautifulsoup4==4.12.3&#10;langchain==0.2.7&#10;langgraph==0.1.8&#10;langchainhub==0.1.20&#10;langchain-community==0.2.7&#10;tavily-python==0.3.4&#10;langchain-chroma==0.1.2&#10;python-dotenv==1.0.1&#10;pytest==8.2.2&#10;langchain-openai==0.1.16&#10;streamlit==1.32.0&#10;graphviz==0.20.1&#10;pypdf==3.13.0&#10;python-docx==0.8.11" />
-            </PendingDiffInfo>
-          </value>
-        </entry>
         <entry key="$PROJECT_DIR$/tests/test_graph.py">
           <value>
             <PendingDiffInfo>
