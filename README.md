@@ -1,127 +1,264 @@
-# Advanced RAG — Dashboard and Workflow
+# 🔄 Corrective RAG System
 
-A local Retrieval-Augmented Generation (RAG) pipeline with a Streamlit dashboard for interacting with the compiled graph workflow, ingesting documents, and visualizing the workflow graph.
+<div align="center">
 
-This repository contains a LangGraph-based workflow that performs retrieval, grading, generation and optional web search, plus a lightweight web UI for exploring and interacting with the system.
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-0.1.0-orange?style=for-the-badge&logo=chainlink&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-Orchestration-green?style=for-the-badge)
+![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-red?style=for-the-badge&logo=streamlit&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-brightgreen?style=for-the-badge)
 
-## Features
+**A sophisticated Retrieval-Augmented Generation system with built-in self-correction, validation, and quality control**
 
-- Compiled graph workflow (graph/graph.py) implementing routing, retrieval, grading and generation.
-- Streamlit dashboard (`app.py`) with:
-  - Query System: submit questions to the compiled workflow
-  - Document Ingestion: upload local files (txt / pdf / docx) and index them into Chroma
-  - System Info: render and view the workflow diagram (graph.png)
-- Ingestion helper (`ingestion.py`) that:
-  - Seeds a Chroma collection from a set of web articles
-  - Provides `process_documents(file_paths: list[str])` to index local files
+[Features](#-features) •
+[Quick Start](#-quick-start) •
+[Documentation](#-documentation) •
+[Contributing](#-contributing)
 
-## Requirements
+</div>
+---
+<div align="center">
 
-- Python 3.10+ (this project used Python 3.12)
-- A Python virtual environment is recommended
-- System dependency for Graphviz if you wish to render PNGs from the workflow graph (e.g. `brew install graphviz` on macOS)
+![img.png](img.png)
+</div>
+---
+## What Makes This Special?
 
-## Python dependencies
+Traditional RAG systems have a critical flaw: they assume retrieved documents are always relevant and generated answers are always accurate. **Corrective RAG** fixes this with multiple validation stages and automatic correction loops.
 
-All Python dependencies are listed in `requirements.txt`. Install with:
+### 🎯 Key Innovations
 
+- **🔍 Smart Query Routing**: Automatically determines whether to use your vectorstore or web search
+- **📊 Document Grading**: Evaluates and filters documents for relevance before generation
+- **✅ Hallucination Detection**: Validates that answers are actually grounded in retrieved facts
+- **🎯 Answer Quality Check**: Ensures responses truly address the user's question
+- **🔄 Self-Correction Loop**: Automatically retries or falls back to web search when quality is insufficient
+- **🌐 Web Search Integration**: Seamless fallback to Tavily search for comprehensive coverage
+
+
+---
+
+##  Features
+
+### 🖥️ Interactive Dashboard
+
+Beautiful Streamlit interface with three main sections:
+
+####  Query System
+- 💬 **Chat-style Interface**: Natural conversation flow
+- 🔄 **Real-time Processing**: See your query being processed
+- 📊 **Detailed Analytics**: View document count, web search usage, and sources
+- 💾 **Chat History**: Keep track of your conversation
+
+#### Document Ingestion
+- 📤 **File Upload**: Support for `.txt`, `.pdf`, `.doc`, `.docx`
+- 🚀 **Batch Processing**: Upload multiple files at once
+- 💫 **Progress Indicators**: Visual feedback during processing
+- 🔄 **Auto-indexing**: Automatically adds documents to vectorstore
+
+#### System Information
+- 📊 **Workflow Visualization**: Generate and view your RAG pipeline diagram
+- ⚙️ **System Status**: Check API keys, vectorstore, and configuration
+
+
+### 🔧 Technical Stack
+
+<div align="center">
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **Orchestration** | LangGraph | Workflow management |
+| **LLM Provider** | OpenAI GPT-4 | Language generation |
+| **Embeddings** | OpenAI Embeddings | Document vectorization |
+| **Vector Store** | ChromaDB | Document storage & retrieval |
+| **Web Search** | Tavily API | External knowledge |
+| **UI Framework** | Streamlit | Interactive dashboard |
+| **Document Processing** | PyPDF, python-docx | File parsing |
+
+</div>
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.10 or higher
+- OpenAI API key 
+- Tavily API key 
+### Installation
+
+**Clone the repository**
+```bash
+git clone https://github.com/berkerbasrgn/advancedRAG.git
+cd advancedRAG
+```
+
+**Create a virtual environment**
+```bash
+python -m venv venv
+
+# On macOS/Linux:
+source venv/bin/activate
+
+# On Windows:
+venv\Scripts\activate
+```
+
+**Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-(If you add or update dependencies, re-run the above command in your virtualenv.)
+**Configure environment variables**
 
-## Configuration
-
-The RAG system requires API credentials for the LLM and embeddings provider. By default it expects an OpenAI API key in the environment.
-
-- Set the environment variable `OPENAI_API_KEY` (or `OPENAI_KEY`) before running the app, or place it in a `.env` file at the project root.
-
-Example (macOS / Linux):
-
-```bash
-export OPENAI_API_KEY="sk-..."
+Create a `.env` file in the project root:
+```env
+OPENAI_API_KEY=sk-proj-your-key-here
+TAVILY_API_KEY=tvly-your-key-here
+LANGCHAIN_API_KEY=your-langsmith-key
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=corrective-rag
 ```
 
-## Running the dashboard
+**Launch the dashboard**
+```bash
+streamlit run app.py
+```
 
-1. Activate your virtualenv where `requirements.txt` has been installed.
-2. Start the Streamlit dashboard:
-
-   ```bash
-   streamlit run app.py
-   ```
-
-3. Open the URL Streamlit prints (usually http://localhost:8501).
-
-Dashboard pages:
-- Query System — type a question and click Submit. The dashboard will lazy-import the compiled `app` from `main.py` and call `app.invoke(input={"question": ...})`.
-- Document Ingestion — upload txt, pdf, doc, docx files and click `Process Documents` to index them into the Chroma collection used by the workflow.
-- System Info — click `Render Workflow Diagram` to try to create `graph.png` from the compiled graph, then view it in the page.
-
-## Ingestion notes
-
-- The repository seeds the Chroma collection from a small set of web pages defined in `ingestion.py`.
-- The `process_documents` helper (in `ingestion.py`) supports local `txt`, `pdf`, and `docx` files and will split and add chunks to the Chroma collection.
-- PDF extraction uses `pypdf`. DOCX extraction uses `python-docx`.
-- The Chroma collection persists to `./.chroma`.
-
-## Workflow graph
-
-- The graph is defined and compiled inside `graph/graph.py` as a `StateGraph`. The compiled object is exposed as `app`.
-- Graph rendering is optional and may require system Graphviz binaries. If `graph.draw_mermaid_png` is available it will be used to write `graph.png`.
-
-## Troubleshooting
-
-- Missing OpenAI key: the Streamlit UI will warn if `OPENAI_API_KEY` is not found. LLM/embeddings calls will fail without a valid key.
-- Graph rendering fails: install Graphviz system package (not just the Python binding) and retry (macOS: `brew install graphviz`).
-- PDF/DOCX parsing issues: ensure `pypdf` and `python-docx` are installed (they are listed in `requirements.txt`). Some PDFs may not produce perfect text extraction.
-- If ingestion does not appear to update the retriever results, confirm that the Chroma collection was persisted to `./.chroma` and the app is using the same persist directory.
-
-## Project layout (high level)
-
-- app.py — Streamlit dashboard and UI
-- ingestion.py — seeding and `process_documents` helper for indexing local files
-- main.py — small entrypoint that loads the compiled graph (`app`) from `graph/graph.py`
-- graph/ — LangGraph workflow and node/chain implementations
-  - graph/graph.py — builds and compiles the workflow
-  - graph/nodes/ — node implementations (retrieve, generate, grade...)
-  - graph/chains/ — chain implementations used by nodes
-- graph.png — optional workflow image
-
-## Development notes
-
-- The Streamlit UI lazy-imports the compiled `app` to avoid heavy startup at import time. When developing the graph you can run `python -m graph.graph` or open `main.py` to exercise the workflow programmatically.
-- When changing dependencies, update `requirements.txt` and reinstall.
-
-## Next steps / improvements
-
-- Show retrieved documents and source metadata alongside the generated answer in the dashboard.
-- Add a query history panel and per-step state visualization while the workflow runs.
-- Add authentication and remote deployment support (FastAPI + React or Streamlit Cloud).
-
-## License & Contributing
-
-Feel free to open issues or submit PRs. No license file included — add one if you plan to open-source this project publicly.
+**Open your browser**
+```
+http://localhost:8501
+```
 
 ---
 
-If you want, I can also:
-- Add a richer response view in the dashboard (show retrieved chunks + sources).
-- Add a query history and export tool.
+## 📖 Documentation
 
-Tell me which enhancement to implement next.
+### Project Structure
 
-**.env Contents**
+```
+corrective-rag/
+├── app.py                    # Streamlit dashboard (main UI)
+├── main.py                   # Workflow entry point
+├── ingestion.py              # Document processing & vectorstore
+├── requirements.txt          # Python dependencies
+├── .env                      # Environment variables (create this)
+│
+├── graph/                       # RAG Workflow Implementation
+│   ├──  graph.py             # Main workflow orchestration
+│   ├──  state.py             # State definitions
+│   ├──  node_constants.py    # Constants
+│   │
+│   ├── chains/                 # LLM Chain Components
+│   │   ├── answer_grader.py   # Validates answer quality
+│   │   ├── generation.py      # Generates responses
+│   │   ├── hallucination_grader.py  # Detects hallucinations
+│   │   ├── retrieval_grader.py     # Grades document relevance
+│   │   └── router.py          # Routes queries intelligently
+│   │
+│   └── nodes/                  # Workflow Nodes
+│       ├── generate.py         # Answer generation
+│       ├── grade_documents.py  # Document filtering
+│       ├── retrieve.py         # Vector retrieval
+│       └── web_search.py       # Web search fallback
+│
+└──  graph.png                # Workflow diagram (auto-generated)
+```
 
-OPENAI_API_KEY=
+## 🎮 Usage Examples
 
-LANGCHAIN_API_KEY=
 
-LANGCHAIN_TRACING_V2=
+### With Document Upload (via Dashboard)
+1. Click on **"📚 Document Ingestion"** tab
+2. Upload your documents (PDF, TXT, DOCX)
+3. Click **"🚀 Process Documents"**
+4. Switch to **"🔍 Query System"** and ask questions about your documents!
 
-LANGCHAIN_PROJECT=
 
-TAVILY_API_KEY=
+### Decision Points
 
-PYTHONPATH=
+The workflow makes intelligent decisions at each stage:
+
+1. **Route Decision**: Vectorstore vs Web Search
+2. **Grade Decision**: Keep documents or search web
+3. **Generation Decision**: Accept answer or retry
+4. **Quality Decision**: Return answer, regenerate, or web search
+
+---
+
+
+## 📊 Monitoring & Debugging
+
+### Enable LangSmith Tracing
+
+Add to your `.env`:
+```env
+LANGCHAIN_API_KEY=your-key
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=corrective-rag
+```
+
+View traces at: https://smith.langchain.com
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| **API Key Not Found** | Create `.env` file with `OPENAI_API_KEY` |
+| **ChromaDB Warnings** | Add `USER_AGENT=corrective-rag/1.0` to `.env` |
+| **Port Already in Use** | Use different port: `streamlit run app.py --server.port=8502` |
+| **Module Not Found** | Run `pip install -r requirements.txt` |
+| **Graph Won't Render** | Install Graphviz: `brew install graphviz` (macOS) |
+
+### Get Help
+1. Open an [Issue](https://github.com/berkerbasrgn/advancedRAG/issues)
+
+---
+
+
+## 🤝 Contributing
+
+I welcome contributions.
+
+1.  Fork the repository
+2.  Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3.  Make your changes
+4.  Run tests
+5.  Commit your changes (`git commit -m 'Add AmazingFeature'`)
+6.  Push to branch (`git push origin feature/AmazingFeature`)
+7.  Open a Pull Request
+
+---
+
+## 🙏 Acknowledgments
+
+- **LangChain Team**: For the amazing framework
+- **LangGraph**: For powerful workflow orchestration
+- **Streamlit**: For the beautiful UI framework
+- **OpenAI**: For GPT-4 and embeddings
+- **Tavily**: For web search integration
+- **ChromaDB**: For efficient vector storage
+
+---
+
+## 📮 Contact & Support
+
+- 📧 **Email**: bberkerbasergun@gmail.com
+- 💼 **LinkedIn**: [https://www.linkedin.com/in/burakberkerbasergun/](https://www.linkedin.com/in/burakberkerbasergun/)
+- 🐙 **GitHub**: [@berkerbasrgn](https://github.com/berkerbasrgn)
+- 🌐 **Website**: [https://www.linkedin.com/in/burakberkerbasergun/](https://yourwebsite.com)
+
+---
+
+<div align="center">
+
+### ⭐ Star this repo if you find it helpful!
+
+**Built with ❤️ using LangChain, LangGraph, and Streamlit**
+
+[⬆ Back to Top](#-corrective-rag-system)
+
+</div>
