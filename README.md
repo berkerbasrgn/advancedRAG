@@ -17,12 +17,9 @@
 
 </div>
 ---
-<div align="center">
-
 ![img.png](img.png)
-</div>
 ---
-### What Makes This Special?
+### What Makes This RAG System Special?
 
 Traditional RAG systems have a critical flaw: they assume retrieved documents are always relevant and generated answers are always accurate. **Corrective RAG** fixes this with multiple validation stages and automatic correction loops.
 
