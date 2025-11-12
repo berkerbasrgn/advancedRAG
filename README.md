@@ -17,7 +17,10 @@
 
 </div>
 ---
+<div align="center">
+
 ![img.png](img.png)
+</div>
 ---
 ### What Makes This RAG System Special?
 
