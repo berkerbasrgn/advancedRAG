@@ -89,6 +89,8 @@ Beautiful Streamlit interface with three main sections:
 - Tavily API key 
 ### Installation
 
+[1116.mov](1116.mov)
+
 **Clone the repository**
 ```bash
 git clone https://github.com/berkerbasrgn/advancedRAG.git
